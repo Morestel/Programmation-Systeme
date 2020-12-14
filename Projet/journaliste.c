@@ -20,9 +20,12 @@ int main(int argc, char *argv[]){
     struct stat st;
     requete_t requete;
     reponse_t reponse;
-        printf("JOURNALISTE: CONSULTATION PUTE\n");
 
     int res_rcv;
+
+    struct sembuf P = {0,-1,SEM_UNDO};
+    struct sembuf V = {0,1,SEM_UNDO};
+    
     // Test validité arguments
     if (argc != 5) // 2 paramètres de bases + 2 paramètres suivant le type de requête
         usage(argv[0]);
@@ -45,7 +48,7 @@ int main(int argc, char *argv[]){
 	    printf("Pb creation cle\n");
 	    exit(-1);
     }
-
+    
      // Récupération du SMP
     mem_part = shmget(cle,sizeof(int),0);
     if (mem_part==-1){
@@ -106,6 +109,7 @@ int main(int argc, char *argv[]){
 
         default: // Aucun des trois c'est donc une erreur
             usage(argv[0]);
+            break;
     }
     
     // Réception de la réponse

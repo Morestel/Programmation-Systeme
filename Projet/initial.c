@@ -61,6 +61,10 @@ int main(int argc, char *argv[]){
     char arg2[20];
     char numero_theme[3];
     char numero_article[3];
+    char mode_acces[20];
+    char lettre_c[1] = {'c'};
+    char lettre_p[1] = {'p'};
+    char lettre_e[1] = {'e'};
     //char param_texte_article[4];
    
     // Initialisation de srand, utilisée pour les demandes aux archives
@@ -172,6 +176,7 @@ int main(int argc, char *argv[]){
     }
     printf("CREATION JOURNALISTE LMAO\n");
     // Création d'une infinité de journalistes 
+    printf("%d, %c, %d, %d\n", nb_archivistes, 'c', 1, 2);
     while(1){
         // Choix d'un nombre aléatoire entre 0 et 9
         nombre_aleatoire = rand()%10;
@@ -190,23 +195,22 @@ int main(int argc, char *argv[]){
                 
                 case 'c': // Consultation
                     sprintf(numero_theme, "%d", 0);
-                   //sprintf(mode_acces, "%c", 'c');
+                    sprintf(mode_acces, "%d", 'c');
                     sprintf(numero_article, "%d", 1);
-                    execlp("./journaliste", "journaliste", param_nb_archiviste, 'c', numero_theme, numero_article, NULL);
-                    printf("JOURNALISTE C FAIT MON SAC EST FAIT\n");
+                    execlp("./journaliste", "journaliste", param_nb_archiviste, lettre_c, numero_theme, numero_article, NULL);
                     break;
 
                 case 'p': // Création
                     sprintf(numero_theme, "%d", 0);
                     //sprintf(param_texte_article, "%s", "truc");
-                    execlp("./journaliste", "journaliste", param_nb_archiviste, 'p', numero_theme, "truc"/*param_texte_article*/, NULL);
+                    execlp("./journaliste", "journaliste", param_nb_archiviste, lettre_p, numero_theme, "truc"/*param_texte_article*/, NULL);
                     break;
 
                 case 'e': // Effacement
                     sprintf(numero_theme, "%d", 0);
                    //sprintf(mode_acces, "%c", 'c');
                     sprintf(numero_article, "%d", 1);
-                    execlp("./journaliste", "journaliste", param_nb_archiviste, 'e', numero_theme, numero_article, NULL);
+                    execlp("./journaliste", "journaliste", param_nb_archiviste, lettre_e, numero_theme, numero_article, NULL);
                     break;
                 
                 default:
@@ -214,8 +218,9 @@ int main(int argc, char *argv[]){
                     exit(-1);
                     break;
             }
-            break;
             exit(-1); // Jamais atteint (normalement)
+            default:
+                break;
         }
     }
     exit(0); // Jamais atteint

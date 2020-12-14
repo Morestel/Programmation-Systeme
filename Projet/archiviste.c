@@ -47,6 +47,10 @@ int main(int argc, char *argv[]){
     requete_t requete;
     //reponse_t reponse;
     int nb_lus;
+
+    struct sembuf P = {0,-1,SEM_UNDO};
+    struct sembuf V = {0,1,SEM_UNDO};
+    
     if (argc != 3)
         usage(argv[0]);
 
