@@ -47,10 +47,10 @@ int main(int argc, char *argv[]){
     requete_t requete;
     //reponse_t reponse;
     int nb_lus;
-
+    int temp;
     struct sembuf P = {0,-1,SEM_UNDO};
     struct sembuf V = {0,1,SEM_UNDO};
-    
+
     if (argc != 3)
         usage(argv[0]);
 
@@ -123,6 +123,11 @@ int main(int argc, char *argv[]){
             raise(SIGUSR1);
         }
 
+        semop(semap, &P, 1);
+        /*
+            Ecriture
+        */
+       semop(semap, &V, 1);
         // On a reçu la requête (normalement) - On la traite
         sleep(1); // Simulation de travail
     }
