@@ -13,4 +13,4 @@ journaliste: journaliste.c include.h
 	$(CC) $(OPTIONS) journaliste.c include.h -o journaliste
 clean:
 	rm initial archiviste journaliste cle.serv
-	ipcrm --all
+	#ipcrm --all

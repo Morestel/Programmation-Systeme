@@ -1,7 +1,6 @@
 #include "include.h"
 
-int nb_lecteur;
-int semap;
+
 // Fonction usage
 void usage(char *s){
     printf("Usage : %s <nb_archiviste> <Consultation> <p1> <p2>\n", s);
@@ -10,30 +9,25 @@ void usage(char *s){
     exit(EXIT_FAILURE);
 }
 
-int Puisje(int sem, int n){
-    struct sembuf op = {sem, -n, SEM_UNDO};
-    return semop(semap, &op, 1);
-}
-
-int Vasy(int sem, int n){
-    struct sembuf op = {sem, n, SEM_UNDO};
-    return semop(semap, &op, 1);
-}
-
 int main(int argc, char *argv[]){
-    int file_mess;
-    int mem_part;
-    int nb_archivistes;
-    char consultation;
-    tab_article *tab_theme;
-    int *file_attente; // File d'attente
     key_t cle;
     pid_t pid = getpid();
     struct stat st;
+
+    int i;
+    int semap;
+    int moins_occupe;
+    int nb_archivistes;
+    int numero_ordre;
+    int file_mess;
+    int mem_part;
+    char consultation;
+    tab_article *tab_theme;
+    int *file_attente; // File d'attente
     int res_rcv;
     requete_t requete;
     reponse_t reponse;
-    reponse.type = 3;
+    reponse.type = 0;
     // Test validité arguments
     if (argc != 5) // 2 paramètres de bases + 2 paramètres suivant le type de requête
         usage(argv[0]);
@@ -90,43 +84,18 @@ int main(int argc, char *argv[]){
 	    printf("(%d) Pb recuperation file de message\n",pid);
 	    exit(-1);
     }
-    // Commun à tous les cas possibles
-   
-    switch(consultation){
-        case 'c': // Consultation
-            requete.nature = 'c';
-            requete.numero_article = atoi(argv[4]);
-            requete.theme = atoi(argv[3]);
-            break;
 
-        case 'p': // Création
-            requete.nature = 'p';
-            requete.theme = atoi(argv[3]);
-            if (strlen(argv[4]) > 4)
-                usage(argv[0]);
-            requete.texte_article = argv[4];
-            break;
-
-        case 'e': // Effacement
-            requete.nature = 'p';
-            requete.theme = atoi(argv[3]);
-            requete.numero_article = atoi(argv[4]);
-            break;
-
-        default: // Aucun des trois c'est donc une erreur
-            usage(argv[0]);
-            break;
+    // Récupération de l'archiviste le moins occupé
+    moins_occupe = file_attente[0];
+    numero_ordre = 0;
+    for (i = 1; i < nb_archivistes; i++){
+        if (moins_occupe > file_attente[i]){ // Si le moins occupé est plus occupé que suivant
+            moins_occupe = file_attente[i]; // Alors on les échange
+            numero_ordre = i; // Et on préserve le numéro d'ordre
+        }
     }
-    
-    requete.expediteur = pid;
-    requete.type = 5;
-    msgsnd(file_mess, &requete, sizeof(requete_t), 0);
 
-    // Mutex écriture
-    semctl(semap, 0, SETVAL, 1);
-
-    Puisje(0, 1);
-
+    // Les arguments seront traités en fonction de s'il veut consulter, publier ou effacer
     switch(consultation){
         case 'c': // Consultation
             requete.nature = 'c';
@@ -134,7 +103,7 @@ int main(int argc, char *argv[]){
             requete.theme = atoi(argv[3]);
             break;
 
-        case 'p': // Création
+        case 'p': // Publication
             requete.nature = 'p';
             requete.theme = atoi(argv[3]);
             if (strlen(argv[4]) > 4)
@@ -153,14 +122,14 @@ int main(int argc, char *argv[]){
             break;
     }
     // Qui est commun à tous les cas
-    requete.expediteur = pid;
-    requete.type = 5; // Type ne bouge pas
+   
+    requete.expediteur = pid; // Journalite défini par son PID
+    requete.num_archiviste = numero_ordre; // On demande l'archiviste avec son numéro d'ordre
+    requete.type = 6; // 6 champs hors champ type
 
     // Envoie du message
     msgsnd(file_mess, &requete, sizeof(requete_t), 0);
 
-    
-    Vasy(0, 1);
 
     // Réception de la réponse
     res_rcv = msgrcv(file_mess, &reponse, sizeof(reponse_t), reponse.type, 0);
@@ -173,17 +142,17 @@ int main(int argc, char *argv[]){
     printf("Journaliste %d\n", pid);
     printf("Requête envoyée: ");
     switch(requete.nature){
-        case 'c':
+        case 'c': // Consultation
             printf("Consultation\n");
             printf("Thème numéro : %d\n", requete.theme);
             printf("Article numéro : %d\n", requete.numero_article);
             break;
-        case 'p':  
+        case 'p':  // Publication
             printf("Publication\n");
             printf("Thème : %d\n", requete.theme);
             printf("Contenu : %s\n", requete.texte_article);
             break;
-        case 'e':
+        case 'e': // Effacement
             printf("Effacement\n");
             printf("Thème numéro : %d\n", requete.theme);
             printf("Article numéro : %d\n", requete.numero_article);
@@ -194,5 +163,6 @@ int main(int argc, char *argv[]){
     }
     printf("Réponse reçue: %s\n", reponse.texte);
     printf("Problème rencontré: %s\n", reponse.texte_erreur);
+    printf("\n");
     exit(0);
 }

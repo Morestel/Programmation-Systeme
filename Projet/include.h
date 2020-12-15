@@ -38,27 +38,23 @@
 typedef struct
 {
     long type;
-    int theme; // 
+    int theme; // Numéro du thème
     int numero_article; // Numéro de l'article
     char nature; // Nature de la requête (c, p, e)
     char *texte_article; // Contenu de l'article
-    pid_t expediteur;
+    pid_t expediteur; // PID de l'expériteur
+    int num_archiviste; // Archiviste qui traitera notre requête
 } 
 requete_t;
 
 typedef struct
 {
     long type;
-    char texte[5];
-    char texte_erreur[100];
-    int code_archiviste;
+    char texte[5]; // Texte va être renvoyé (Consultation)
+    char texte_erreur[100]; // Texte d'erreur au cas où
 } 
 reponse_t;
 
 #define MAX_ARTICLE 100
-#define MAX_THEME 100
 // Tableau des thèmes, chaque case représente un tableau qui est un thème. Un thème est défini par son numéro (indice) et son contenu (ce qu'il contient)
-typedef struct{
-    char article[MAX_THEME][MAX_ARTICLE][5];
-    int nbr_article;
-}tab_article;
+typedef char tab_article[MAX_ARTICLE][5];
