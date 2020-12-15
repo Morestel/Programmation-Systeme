@@ -5,7 +5,8 @@
 int file_mess; // ID de la file
 int mem_part; // ID du segment de mémoire partagée
 int semap; // ID sémaphore
-
+int ssemap; // ID sémaphore 2
+tab_article *tab_theme;
 
 // Fonction usage
 void usage(char *s){
@@ -35,6 +36,7 @@ void arret(int s){
     semctl(semap,1,IPC_RMID,NULL);
     shmctl(mem_part,IPC_RMID,NULL);
     msgctl(file_mess,IPC_RMID, NULL);
+
     exit(EXIT_SUCCESS);
 }
 
@@ -50,7 +52,7 @@ void texte_aleatoire(char *s){
 
 int main(int argc, char *argv[]){
     int nb_themes, nb_archivistes;
-    int i;
+    int i, j;
     sigset_t  masque_attente;
 
     key_t cle;
@@ -59,7 +61,6 @@ int main(int argc, char *argv[]){
     struct stat st;
     int res_init;
     unsigned short val_init[1] = {1};
-    int *tab;
     int *file_attente; // File d'attente 
 
     // Demande aux archives: 10 éléments parmi lesquels: 7 consultations, 2 publications, 1 effacement
@@ -70,7 +71,8 @@ int main(int argc, char *argv[]){
     int nombre_aleatoire; // Nombre aléatoire entre 0 et 9
 
     char param_nb_archiviste[20];
-    char arg2[20];
+    char nom_de_code[20];
+    char param_nb_theme[20];
     char numero_theme[3];
     char numero_article[3];
     char mode_acces[20];
@@ -129,13 +131,14 @@ int main(int argc, char *argv[]){
     if (mem_part==-1){
 	    printf("Pb creation SMP ou il existe deja\n");
 	    exit(-1);
-    }
-    
+    }   
+   
     /* Attachement de la memoire partagee :          */
-    tab = shmat(mem_part,NULL,0);
-    if (tab==(int *) -1){
+    tab_theme = shmat(mem_part,NULL,0);
+    if (tab_theme == (void*)-1){
 	    printf("Pb attachement\n");
-	/* Il faut detruire le SMP puisqu'on l'a cree : */
+	
+    
 	    shmctl(mem_part,IPC_RMID,NULL);
 	    exit(-1);
     }
@@ -150,7 +153,7 @@ int main(int argc, char *argv[]){
     }
 
     /* On cree le semaphore (meme cle) :                     */
-    semap = semget(cle, nb_themes, IPC_CREAT | IPC_EXCL | 0660);
+    semap = semget(cle, nb_themes + 1, IPC_CREAT | IPC_EXCL | 0660); // Un sémaphore par thème + 1 pour la file d'attente
     if (semap==-1){
 	    printf("Pb creation semaphore ou il existe deja\n");
 	/* Il faut detruire le SMP puisqu'on l'a cree : */
@@ -158,7 +161,8 @@ int main(int argc, char *argv[]){
 	/* Le detachement du SMP se fera a la terminaison */
 	    exit(-1);
     }
-    
+
+
     /* On l'initialise :                                     */
     res_init = semctl(semap,1,SETALL,val_init);
     if (res_init==-1){
@@ -169,9 +173,16 @@ int main(int argc, char *argv[]){
 	    exit(-1);
     }     
     
-    // Tout est bon on initialise tab et file d'attente
-    tab[0] = 0; 
+    // Tout est bon on initialise tab_theme et file d'attente
+ 
     file_attente[0] = 0;
+    tab_theme = malloc(sizeof(tab_article) * nb_themes);
+        
+    for (i = 0; i < nb_themes; i++){
+        for (j = 0; j < MAX_ARTICLE; j++){
+            strcpy(tab_theme[i][j], "    ");
+        }
+    }
 
     file_mess = msgget(cle, IPC_CREAT | IPC_EXCL | 0660);
     if (file_mess==-1){
@@ -187,9 +198,9 @@ int main(int argc, char *argv[]){
             case -1:
                 break;
             case 0:
-                sprintf(param_nb_archiviste, "%d", nb_archivistes);
-                sprintf(arg2, "%d", nb_themes);
-                execlp("./archiviste", "archiviste", param_nb_archiviste, arg2, NULL);
+                sprintf(nom_de_code, "%d", i);
+                sprintf(param_nb_theme, "%d", nb_themes);
+                execlp("./archiviste", "archiviste", nom_de_code, param_nb_theme, NULL);
                 perror("Création des archivistes "); // En principe jamais atteint
                 break;
         }
@@ -204,7 +215,7 @@ int main(int argc, char *argv[]){
         // Création des fils
         pid_journaliste = fork();
         sprintf(param_nb_archiviste, "%d", nb_archivistes);
-        sprintf(arg2, "%d", nb_themes);
+        sprintf(param_nb_theme, "%d", nb_themes);
         switch(pid_journaliste){
             case -1:
                 break;

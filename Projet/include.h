@@ -49,7 +49,12 @@ requete_t;
 typedef struct
 {
     long type;
-    int resu;
+    char texte[5];
+    char texte_erreur[100];
+    int code_archiviste;
 } 
 reponse_t;
 
+#define MAX_ARTICLE 100
+// Tableau des thèmes, chaque case représente un tableau qui est un thème. Un thème est défini par son numéro (indice) et son contenu (ce qu'il contient)
+typedef char tab_article[MAX_ARTICLE][5];
