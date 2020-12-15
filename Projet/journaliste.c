@@ -1,5 +1,7 @@
 #include "include.h"
 
+int nb_lecteur;
+int semap;
 // Fonction usage
 void usage(char *s){
     printf("Usage : %s <nb_archiviste> <Consultation> <p1> <p2>\n", s);
@@ -8,24 +10,29 @@ void usage(char *s){
     exit(EXIT_FAILURE);
 }
 
+int Puisje(int sem, int n){
+    struct sembuf op = {sem, -n, SEM_UNDO};
+    return semop(semap, &op, 1);
+}
+
+int Vasy(int sem, int n){
+    struct sembuf op = {sem, n, SEM_UNDO};
+    return semop(semap, &op, 1);
+}
+
 int main(int argc, char *argv[]){
     int file_mess;
     int mem_part;
-    int semap;
     int nb_archivistes;
     char consultation;
     int *tab; // Entier du SMP
+    int *file_attente; // File d'attente
     key_t cle;
     pid_t pid = getpid();
     struct stat st;
     requete_t requete;
     reponse_t reponse;
 
-    int res_rcv;
-
-    struct sembuf P = {0,-1,SEM_UNDO};
-    struct sembuf V = {0,1,SEM_UNDO};
-    
     // Test validité arguments
     if (argc != 5) // 2 paramètres de bases + 2 paramètres suivant le type de requête
         usage(argv[0]);
@@ -63,6 +70,12 @@ int main(int argc, char *argv[]){
 	exit(-1);
     }
 
+    // Attachement de la file d'attente du SMP
+    file_attente = shmat(mem_part,NULL,0);
+    if (file_attente==(int *)-1){
+	    printf("(%d) Pb attachement SMP\n",pid);
+	    exit(-1);
+    }
     // Récupération des sémaphores
     semap = semget(cle,1,0);
     if (semap==-1){
@@ -76,17 +89,14 @@ int main(int argc, char *argv[]){
 	    printf("(%d) Pb recuperation file de message\n",pid);
 	    exit(-1);
     }
-
     // Commun à tous les cas possibles
-    requete.expediteur = pid;
-    printf("JOURNALISTE: CONSULTATION %c\n", consultation);
+   
     switch(consultation){
         case 'c': // Consultation
             requete.nature = 'c';
             requete.numero_article = atoi(argv[4]);
             requete.theme = atoi(argv[3]);
             // Envoie de la requête
-            msgsnd(file_mess, &requete, sizeof(requete_t), 0);
             break;
 
         case 'p': // Création
@@ -96,7 +106,6 @@ int main(int argc, char *argv[]){
                 usage(argv[0]);
             requete.texte_article = argv[4];
             // Envoie de la requête
-            msgsnd(file_mess, &requete, sizeof(requete_t), 0);
             break;
 
         case 'e': // Effacement
@@ -104,7 +113,6 @@ int main(int argc, char *argv[]){
             requete.theme = atoi(argv[3]);
             requete.numero_article = atoi(argv[4]);
             // Envoie de la requête
-            msgsnd(file_mess, &requete, sizeof(requete_t), 0);
             break;
 
         default: // Aucun des trois c'est donc une erreur
@@ -112,10 +120,30 @@ int main(int argc, char *argv[]){
             break;
     }
     
+    requete.expediteur = pid;
+    requete.type = 5;
+    msgsnd(file_mess, &requete, sizeof(requete_t), 0);
+
+    // Algorithme lecteur écrivain - Lecteur prioritaire
+    Puisje(0, 1);
+    nb_lecteur++;
+    if (nb_lecteur == 1){
+        Puisje(0, 1);
+    }
+    Vasy(0, 1);
+    sleep(2);
+    Puisje(0, 1);
+    nb_lecteur--;
+    if (nb_lecteur == 0){
+        Vasy(0, 1);
+    }
+    Vasy(0,1);
     // Réception de la réponse
-    res_rcv = msgrcv(file_mess,&reponse,sizeof(reponse_t),pid,0);
+    /*
+    res_rcv = msgrcv(file_mess,&reponse,sizeof(reponse_t),pid, 0);
     if (res_rcv ==-1){
 	    printf("Erreur, numero %d\n",errno);
 	    exit(-1);
-    }
+    }*/
+    exit(0);
 }

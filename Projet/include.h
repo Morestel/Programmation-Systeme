@@ -13,6 +13,8 @@
 #include <sys/msg.h>
 #include <signal.h>
 #include <time.h>
+#include <semaphore.h>
+
 
 
 #define FICHIER_CLE "cle.serv"

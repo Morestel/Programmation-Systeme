@@ -38,6 +38,16 @@ void arret(int s){
     exit(EXIT_SUCCESS);
 }
 
+void texte_aleatoire(char *s){
+    int i;
+    char lettre;
+    
+    for (i = 0; i < 4; i++){
+        lettre = rand() % ('z' - 'a' + 1) + 'a';
+        s[i] = lettre;
+    }
+}
+
 int main(int argc, char *argv[]){
     int nb_themes, nb_archivistes;
     int i;
@@ -50,9 +60,11 @@ int main(int argc, char *argv[]){
     int res_init;
     unsigned short val_init[1] = {1};
     int *tab;
+    int *file_attente; // File d'attente 
+
     // Demande aux archives: 10 éléments parmi lesquels: 7 consultations, 2 publications, 1 effacement
     // On piochera aléatoirement dedans
-    char demande_archive[10] = {'c', 'c', 'c', 'c', 'c', 'c', 'c',
+    char demande_archive[] = {'c', 'c', 'c', 'c', 'c', 'c', 'c',
                                 'p', 'p', 
                                 'e'};
     int nombre_aleatoire; // Nombre aléatoire entre 0 et 9
@@ -65,8 +77,8 @@ int main(int argc, char *argv[]){
     char lettre_c[1] = {'c'};
     char lettre_p[1] = {'p'};
     char lettre_e[1] = {'e'};
-    //char param_texte_article[4];
-   
+    char param_texte_article[] = "aaaa"; // Paramètre texte article, on prendra aaaa par défaut
+    
     // Initialisation de srand, utilisée pour les demandes aux archives
     srand(time(NULL)); 
     // Test du nombre d'arguments
@@ -97,7 +109,7 @@ int main(int argc, char *argv[]){
     mon_sigaction(SIGTSTP, arret);
 
     sigemptyset(&masque_attente);
-
+    
      /* Creation de la cle :          */
     /* 1 - On teste si le fichier cle existe dans le repertoire courant : */
     if ((stat(FICHIER_CLE,&st) == -1) &&
@@ -128,8 +140,17 @@ int main(int argc, char *argv[]){
 	    exit(-1);
     }
 
+    // Attachement de la file d'attente
+    file_attente = shmat(mem_part,NULL,0);
+    if (file_attente==(int *) -1){
+	    printf("Pb attachement\n");
+	/* Il faut detruire le SMP puisqu'on l'a cree : */
+	    shmctl(mem_part,IPC_RMID,NULL);
+	    exit(-1);
+    }
+
     /* On cree le semaphore (meme cle) :                     */
-    semap = semget(cle,1,IPC_CREAT | IPC_EXCL | 0660);
+    semap = semget(cle, nb_themes, IPC_CREAT | IPC_EXCL | 0660);
     if (semap==-1){
 	    printf("Pb creation semaphore ou il existe deja\n");
 	/* Il faut detruire le SMP puisqu'on l'a cree : */
@@ -137,30 +158,29 @@ int main(int argc, char *argv[]){
 	/* Le detachement du SMP se fera a la terminaison */
 	    exit(-1);
     }
-
+    
     /* On l'initialise :                                     */
     res_init = semctl(semap,1,SETALL,val_init);
     if (res_init==-1){
-	    printf("Pb initialisation semaphore\n");
+	    perror("Initialisation semctl");
 	/* On detruit les IPC deje crees : */
 	    semctl(semap,1,IPC_RMID,NULL);
 	    shmctl(mem_part,IPC_RMID,NULL);
 	    exit(-1);
     }     
-
-    // Tout est bon on initialise tab
+    
+    // Tout est bon on initialise tab et file d'attente
     tab[0] = 0; 
+    file_attente[0] = 0;
 
-    file_mess = msgget(cle,IPC_CREAT | IPC_EXCL | 0660);
+    file_mess = msgget(cle, IPC_CREAT | IPC_EXCL | 0660);
     if (file_mess==-1){
         fprintf(stderr,"Pb creation file de message\n");
         semctl(semap,1,IPC_RMID,NULL);
         shmctl(mem_part,IPC_RMID,NULL);
         exit(-1);
     }
-
     // Création des archivistes
-    printf("CREATION ARCHIVISTE DAB DAB\n");
     for(i = 0; i < nb_archivistes; i++){
         pid_archive = fork();
         switch(pid_archive){
@@ -174,10 +194,10 @@ int main(int argc, char *argv[]){
                 break;
         }
     }
-    printf("CREATION JOURNALISTE LMAO\n");
     // Création d'une infinité de journalistes 
-    printf("%d, %c, %d, %d\n", nb_archivistes, 'c', 1, 2);
+    
     while(1){
+        
         // Choix d'un nombre aléatoire entre 0 et 9
         nombre_aleatoire = rand()%10;
         
@@ -202,8 +222,8 @@ int main(int argc, char *argv[]){
 
                 case 'p': // Création
                     sprintf(numero_theme, "%d", 0);
-                    //sprintf(param_texte_article, "%s", "truc");
-                    execlp("./journaliste", "journaliste", param_nb_archiviste, lettre_p, numero_theme, "truc"/*param_texte_article*/, NULL);
+                    texte_aleatoire(param_texte_article); // Texte aléatoire de 4 lettres
+                    execlp("./journaliste", "journaliste", param_nb_archiviste, lettre_p, numero_theme, param_texte_article, NULL);
                     break;
 
                 case 'e': // Effacement

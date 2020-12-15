@@ -35,6 +35,15 @@ void arret(int s){
     exit(EXIT_SUCCESS);
 }
 
+int Puisje(int sem, int n){
+    struct sembuf op = {sem, -n, SEM_UNDO};
+    return semop(semap, &op, 1);
+}
+
+int Vasy(int sem, int n){
+    struct sembuf op = {sem, n, SEM_UNDO};
+    return semop(semap, &op, 1);
+}
 
 int main(int argc, char *argv[]){
     int nb_archivistes, nb_themes;
@@ -42,15 +51,16 @@ int main(int argc, char *argv[]){
     key_t cle;
     struct stat st;
     int *tab; // Entier du SMP
+    int *file_attente; // File d'attente en mémoire partagée
     sigset_t  masque_attente;
-
+    int msg_rcv;
     requete_t requete;
     //reponse_t reponse;
-    int nb_lus;
-    int temp;
+
     struct sembuf P = {0,-1,SEM_UNDO};
     struct sembuf V = {0,1,SEM_UNDO};
-
+    unsigned short mutex[1] = {1};
+    requete.type = 5;
     if (argc != 3)
         usage(argv[0]);
 
@@ -71,7 +81,6 @@ int main(int argc, char *argv[]){
     mon_sigaction(SIGTSTP, arret);
 
     sigemptyset(&masque_attente);
-
     /* Creation de la cle :          */
         /* 1 - On teste si le fichier cle existe dans le repertoire courant : */
     if ((stat(FICHIER_CLE,&st) == -1) &&
@@ -93,11 +102,20 @@ int main(int argc, char *argv[]){
 	    exit(-1);
     }
 
+    
+
     // Attachement du SMP
     tab = shmat(mem_part,NULL,0);
     if (tab==(int *)-1){
 	printf("(%d) Pb attachement SMP\n",pid);
 	exit(-1);
+    }
+
+    // Attachement de la file d'attente du SMP
+    file_attente = shmat(mem_part,NULL,0);
+    if (file_attente==(int *)-1){
+	    printf("(%d) Pb attachement SMP\n",pid);
+	    exit(-1);
     }
 
     // Récupération des sémaphores
@@ -113,22 +131,29 @@ int main(int argc, char *argv[]){
 	    printf("(%d) Pb recuperation file de message\n",pid);
 	    exit(-1);
     }
-
+    
     // Execution de la boucle infinie
     for(;;){
-
         // Attente des requêtes
-        if ((nb_lus = msgrcv(file_mess, &requete, sizeof(requete_t), 1, 0)) == -1){
+        
+        if ((msg_rcv = msgrcv(file_mess, &requete, sizeof(requete_t), requete.type, 0)) == -1){
             printf("Erreur de lecture, erreur numéro %d\n", errno);
             raise(SIGUSR1);
         }
+        // Placement dans une file d'attente
+        file_attente[0]++;
 
-        semop(semap, &P, 1);
-        /*
-            Ecriture
-        */
-       semop(semap, &V, 1);
+        // Execution du travail - Algorithme Lecteur Ecrivain - Lecteur prioritaire
+        // Création du mutex 
+        semctl(semap, 0, SETALL, mutex);
+        Puisje(mutex, 1);
+
+        sleep(1);
+        
+        Vasy(mutex, 1);
+
         // On a reçu la requête (normalement) - On la traite
-        sleep(1); // Simulation de travail
+
     }
+    exit(0); // En principe on ne l'atteindra pas
 }
