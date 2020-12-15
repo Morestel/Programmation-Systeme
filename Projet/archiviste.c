@@ -4,11 +4,13 @@ int mem_part;
 int semap;
 int file_mess;
 int nb_lecteur = 0;
+int *file_attente;
+tab_article *tab_theme;
 
 // Fonction usage
 void usage(char *s){
-    printf("Usage : %s <nb_archiviste> <nb_themes>\n", s);
-    printf("nb_archiviste >= 2\nnb_themes >=2\n");
+    printf("Usage : %s <numéro archiviste> <nb_themes>\n", s);
+    printf("nb_themes >=2\n");
     exit(EXIT_FAILURE);
 }
 
@@ -33,6 +35,8 @@ void arret(int s){
     semctl(semap,1,IPC_RMID,NULL);
     shmctl(mem_part,IPC_RMID,NULL);
     msgctl(file_mess,IPC_RMID, NULL);
+    shmdt(file_attente);
+    shmdt(tab_theme);
     exit(EXIT_SUCCESS);
 }
 
@@ -48,17 +52,13 @@ int Vasy(int sem, int n){
 
 int main(int argc, char *argv[]){
     int nom_de_code, nb_themes;
-    int i;
     pid_t pid = getpid();
     key_t cle;
     struct stat st;
-    tab_article *tab_theme; // Tableau des thèmes           
-    int *file_attente; // File d'attente en mémoire partagée
     sigset_t  masque_attente;
     int msg_rcv;
     requete_t requete;
     reponse_t reponse;
-    int publication = 0;
     requete.type = 5;
     reponse.type = 3;
     if (argc != 3)
@@ -165,59 +165,65 @@ int main(int argc, char *argv[]){
         semctl(semap, requete.theme, SETVAL, 1);
         semctl(semap, 0, SETVAL, 1);
 
-        Puisje(0, 1);
+       // Puisje(0, 1);
         nb_lecteur++;
         if (nb_lecteur == 1){
             Puisje(requete.theme, 1);
         }
-        Vasy(0, 1);
+        //Vasy(0, 1);
 
         // Lire   
         switch(requete.nature){
             case 'c':
                 printf("Demande de consultation émanant de %d\n", requete.expediteur);
-                 if (tab_theme[requete.theme][requete.numero_article] == NULL){
+                 if (requete.numero_article < tab_theme->nbr_article){
                     strcpy(reponse.texte_erreur, "Consultation impossible - Article non existant");
                 }else  
-                    strcpy(reponse.texte, tab_theme[requete.theme][requete.numero_article]); // On stocke le texte dans la réponse qu'on enverra
+                    strcpy(reponse.texte, tab_theme->article[requete.theme][requete.numero_article]); // On stocke le texte dans la réponse qu'on enverra
                 break;
             case 'p':
                 printf("Demande de publication émanant de %d\n", requete.expediteur);
-                for (i = 0; i < MAX_ARTICLE; i++){ // Parcours de la table des thèmes
-                    if (tab_theme[requete.theme][i] == NULL){ // On cherche un emplacement d'article vide
-                        strcpy(tab_theme[requete.theme][i], requete.texte_article); // C'est vide, on le met à cette position
-                        publication = 1;
-                    }
-                }
-                if (!publication){
+                if (tab_theme->nbr_article > MAX_ARTICLE){
                     strcpy(reponse.texte_erreur, "Publication impossible - Maximum d'article atteint");
+                }
+                else{
+                    //tab_theme->article[requete.theme][tab_theme->nbr_article] = requete.texte_article;
+                    strcpy(tab_theme->article[requete.theme][tab_theme->nbr_article], requete.texte_article);
+                    tab_theme->nbr_article++;
                 }
                 break;
             case 'e':
                 printf("Demande d'effacement émanant de %d\n", requete.expediteur);
                 // On va effacer un article en le remplaçant par des espaces s'il existe
-                if (tab_theme[requete.theme][requete.numero_article] == NULL){
+                if (requete.numero_article < tab_theme->nbr_article){
                     strcpy(reponse.texte_erreur, "Effacement impossible - Article non existant");
-                }else                         
-                  strcpy(tab_theme[requete.theme][requete.numero_article], "    ");
-
+                }else{                      
+                  //strcpy(&tab_theme->article[requete.theme][requete.numero_article], "    ");
+                  tab_theme->nbr_article--;
+                }
                 break;
             default:
-                printf("Demande fellation\n");
+                printf("Demande erronée\n");
                 break;
         }
        
         // Simulation de travail
         sleep(3);
         
-        Puisje(0, 1);
+       // Puisje(0, 1);
         nb_lecteur--;
-        if (nb_lecteur == 0){
+        /*if (nb_lecteur == 0){
             Vasy(0, 1);
-        }
+        }*/
 
-        Vasy(requete.theme, 1);
+        //Vasy(requete.theme, 1);
+        printf("Nombre d'article: %d\n", tab_theme->nbr_article);
         printf("AVANT ENVOIE\n");
+        printf("Texte: %s\n", reponse.texte);
+        printf("Texte erreur %s\n", reponse.texte_erreur);
+        printf("Code %d\n", reponse.code_archiviste);
+        printf("%s\n", tab_theme->article[requete.theme][tab_theme->nbr_article]);
+        printf("Nombre d'article: %d\n", tab_theme->nbr_article);
         // Envoie de la réponse
         msgsnd(file_mess, &reponse, sizeof(reponse_t), 0);
         printf("APRES ENVOIE\n");
